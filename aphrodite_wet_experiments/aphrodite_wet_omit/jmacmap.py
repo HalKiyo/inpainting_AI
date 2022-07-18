@@ -11,7 +11,7 @@ def jmacmap():
         [255,153,0,1],
         [255,40,0,1],
         [180,0,104,1]],dtype=np.float)
-    
+
     jmacolors[:,:3] /=256
     jmacmap=ListedColormap(jmacolors)
     jmacmap2=LinearSegmentedColormap.from_list("jmacmap2",colors=jmacolors)

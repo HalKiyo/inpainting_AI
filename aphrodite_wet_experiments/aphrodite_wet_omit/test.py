@@ -51,7 +51,7 @@ def main(year, resume=False):
             [('optimizer', optimizer)] )
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
-        print('Starting from iter ', start_iter)
+        #print('Starting from iter ', start_iter)
 
     # make directories
     if not os.path.exists(f'{save_dir}/{year}/output'):
@@ -232,3 +232,4 @@ def valid_image(model, dataset, device, filename):
 if __name__ == '__main__':
     for i in range(1951, 2015):
         main(year=i, resume=True)
+        print(f'{i} year is saved as new file')
