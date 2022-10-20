@@ -14,6 +14,11 @@ from net import PConvUNet
 from net import VGG16FeatureExtractor
 from jmacmap import jmacmap
 
+from torch.nn.utils import parameters_to_vector as p2v
+from prettytable import PrettyTable
+from torchvision import models
+from torchsummary import summary
+
 
 class InfiniteSampler(data.sampler.Sampler):
     def __init__(self, num_samples):
@@ -172,6 +177,17 @@ def valid_image(model, dataset, device, filename):
 
     np.save(filename,valid_output)
 
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        params = parameter.numel()
+        table.add_row([name, params])
+        total_params+=params
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
 
 if __name__ == '__main__':
     # initial setting
@@ -202,10 +218,20 @@ if __name__ == '__main__':
                           sampler=InfiniteSampler(len(dataset_train)),
                           num_workers=n_threads))
     model = PConvUNet().to(device)
+
     start_iter = 0
     optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
     criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
+
+    # number of neurons
+    summary(model, [(3, 40, 128), (3, 40, 128)])
+
+    # number of parameters
+    print(f'parameters: {p2v(model.parameters()).numel()}')
+    print(f'parameters: {sum(p.numel() for p in model.parameters())}')
+    count_parameters(model)
+    exit()
 
     # load check point (option)
     if resume is True:
