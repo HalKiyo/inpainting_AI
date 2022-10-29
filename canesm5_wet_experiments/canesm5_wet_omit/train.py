@@ -38,11 +38,11 @@ class Places2(torch.utils.data.Dataset):
         super(Places2, self).__init__()
 
         if split == 'train':
-            self.paths = f"{img_root}/aphrodite_wet_omit_train.npy"
+            self.paths = f"{img_root}/canesm5_wet_omit_train.npy"
         else:
-            self.paths = f"{img_root}/aphrodite_wet_omit_valid.npy"
+            self.paths = f"{img_root}/canesm5_wet_omit_valid.npy"
 
-        self.maskpath = f"{mask_root}/aphrodite_wet_omit_mask.npy"
+        self.maskpath = f"{mask_root}/canesm5_wet_omit_mask.npy"
 
     def __getitem__(self, index):
         npy_file = np.load(self.paths)
@@ -176,10 +176,10 @@ def valid_image(model, dataset, device, filename):
 if __name__ == '__main__':
     # initial setting
     root = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
-           '/aphrodite_wet_experiments/aphrodite_wet_omit/data'
+           '/canesm5_wet_experiments/canesm5_wet_omit/data'
     save_dir = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
-               '/aphrodite_wet_experiments/aphrodite_wet_omit'
-    batch_size = 16
+               '/canesm5_wet_experiments/canesm5_wet_omit'
+    batch_size = 64
     n_threads = 12
     lr = 2e-4
     max_iter = 7*10**5
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     # save output
         if (i + 1) % vis_interval == 0:
             model.eval()
-            npyname = f"{save_dir}/data/output/output{i+1}.npy"
+            npyname = f"{save_dir}/data/output{i+1}.npy"
             jpgname = f"{save_dir}/img/img{i+1}.jpg"
             validname = f"{save_dir}/valid/valid{i+1}.npy"
 

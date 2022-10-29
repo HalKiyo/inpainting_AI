@@ -214,12 +214,12 @@ if __name__ == '__main__':
     save_dir = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
                '/canesm5_wet_random_experiments/canesm5_wet_omit'
     batch_size = 16
-    n_threads = 24
+    n_threads = 12
     lr = 2e-4
     max_iter = 50*10**5
     save_model_interval = 10**5
     vis_interval = 10**5
-    resume = True
+    resume = False
     load_model_name = 7*10**5
     size = (40, 128)
     LAMBDA_DICT = {'valid': 1.0, 'hole': 6.0, 'tv': 0.1, 'prc': 0.05, 'style': 120.0}

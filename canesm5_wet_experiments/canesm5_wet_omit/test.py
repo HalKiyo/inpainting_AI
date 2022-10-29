@@ -1,5 +1,4 @@
 import os
-import h5py
 import torch
 import numpy as np
 import torch.nn as nn
@@ -13,6 +12,63 @@ from loss import InpaintingLoss
 from net import PConvUNet
 from net import VGG16FeatureExtractor
 from jmacmap import jmacmap
+
+def main(year, resume=False):
+    # initial setting
+    year = year
+    resume = resume
+    root = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
+           '/canesm5_wet_experiments/canesm5_wet_omit/data'
+    ckpt_dir = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
+               '/canesm5_wet_experiments/canesm5_wet_omit/ckpt'
+    save_dir = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
+               '/canesm5_wet_experiments/canesm5_wet_omit/data/timeseries'
+    batch_size = 16
+    n_threads = 24
+    lr = 2e-4
+    load_model_name = 7*10**5
+    size = (40, 128)
+    LAMBDA_DICT = {'valid': 1.0, 'hole': 6.0, 'tv': 0.1, 'prc': 0.05, 'style': 120.0}
+    IMAGES_LABEL = ['input', 'mask', 'output', 'output_comp', 'gt']
+
+    # data loading
+    dataset_val = Places2(root, root, year, 'val')
+
+    # model setting
+    torch.backends.cudnn.benchmark = True
+    device = torch.device('cuda')
+    model = PConvUNet().to(device)
+    start_iter = 0
+    optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
+    criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
+
+    # load check point (option)
+    if resume is True:
+        start_iter = load_ckpt(
+            f'{ckpt_dir}/{load_model_name}.pth',
+            [('model', model)],
+            [('optimizer', optimizer)] )
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+        print('Starting from iter ', start_iter)
+
+    # make directories
+    if not os.path.exists(f'{save_dir}/{year}/output'):
+        os.makedirs(f'{save_dir}/{year}/output')
+    if not os.path.exists(f'{save_dir}/{year}/img'):
+        os.makedirs(f'{save_dir}/{year}/img')
+    if not os.path.exists(f'{save_dir}/{year}/valid'):
+        os.makedirs(f'{save_dir}/{year}/valid')
+
+    model.eval()
+    npyname = f"{save_dir}/{year}/output/output{start_iter}.npy"
+    jpgname = f"{save_dir}/{year}/img/img{start_iter}.jpg"
+    validname = f"{save_dir}/{year}/valid/valid{start_iter}.npy"
+
+    img = grid_image(model, dataset_val, device, npyname)
+    show(img, IMAGES_LABEL, jpgname)
+    valid_image(model, dataset_val, device, validname)
 
 
 class InfiniteSampler(data.sampler.Sampler):
@@ -34,15 +90,15 @@ class InfiniteSampler(data.sampler.Sampler):
                 i = 0
 
 class Places2(torch.utils.data.Dataset):
-    def __init__(self, img_root, mask_root, split='train'):
+    def __init__(self, img_root, mask_root, year, split='train'):
         super(Places2, self).__init__()
 
         if split == 'train':
-            self.paths = f"{img_root}/aphrodite_wet_omit_train.npy"
+            self.paths = f"{img_root}/canesm5_wet_omit_train.npy"
         else:
-            self.paths = f"{img_root}/aphrodite_wet_omit_valid.npy"
+            self.paths = f"{img_root}/timeseries/{year}/valid_june_{year}.npy"
 
-        self.maskpath = f"{mask_root}/aphrodite_wet_omit_mask.npy"
+        self.maskpath = f"{mask_root}/canesm5_wet_omit_mask.npy"
 
     def __getitem__(self, index):
         npy_file = np.load(self.paths)
@@ -174,84 +230,5 @@ def valid_image(model, dataset, device, filename):
 
 
 if __name__ == '__main__':
-    # initial setting
-    root = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
-           '/aphrodite_wet_experiments/aphrodite_wet_omit/data'
-    save_dir = '/docker/home/hasegawa/docker-gpu/reconstructionAI'\
-               '/aphrodite_wet_experiments/aphrodite_wet_omit'
-    batch_size = 16
-    n_threads = 12
-    lr = 2e-4
-    max_iter = 7*10**5
-    save_model_interval = 10**5
-    vis_interval = 10**5
-    resume = False
-    load_model_name = 2*10**5
-    size = (40, 128)
-    LAMBDA_DICT = {'valid': 1.0, 'hole': 6.0, 'tv': 0.1, 'prc': 0.05, 'style': 120.0}
-    IMAGES_LABEL = ['input', 'mask', 'output', 'output_comp', 'gt']
-
-    # data loading
-    dataset_train = Places2(root, root, 'train')
-    dataset_val = Places2(root, root, 'val')
-
-    # model setting
-    torch.backends.cudnn.benchmark = True
-    device = torch.device('cuda')
-    iterator_train = iter(data.DataLoader(dataset_train, batch_size=batch_size,
-                          sampler=InfiniteSampler(len(dataset_train)),
-                          num_workers=n_threads))
-    model = PConvUNet().to(device)
-    start_iter = 0
-    optimizer = torch.optim.Adam(
-            filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
-    criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
-
-    # load check point (option)
-    if resume is True:
-        start_iter = load_ckpt(
-            f'{save_dir}/ckpt/{load_model_name}.pth',
-            [('model', model)],
-            [('optimizer', optimizer)] )
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-        print('Starting from iter ', start_iter)
-
-    # locate data to gpu
-    image, mask, gt = [x.to(device) for x in next(iterator_train)]
-    image = image.float()
-    mask = mask.float()
-    gt = gt.float()
-
-    # model training
-    for i in tqdm(range(start_iter, max_iter)):
-        model.train()
-        output, _ = model(image, mask)
-        loss_dict = criterion(image, mask, output, gt)
-
-        loss = 1.0
-        for key, coef in LAMBDA_DICT.items():
-            value = coef * loss_dict[key]
-            loss += value
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    # save check point
-        if (i + 1) % save_model_interval == 0 or (i + 1) == max_iter:
-            save_ckpt( f'{save_dir}/ckpt/{i+1}.pth',
-                       [('model', model)],
-                       [('optimizer', optimizer)],
-                       i + 1)
-
-    # save output
-        if (i + 1) % vis_interval == 0:
-            model.eval()
-            npyname = f"{save_dir}/data/output/output{i+1}.npy"
-            jpgname = f"{save_dir}/img/img{i+1}.jpg"
-            validname = f"{save_dir}/valid/valid{i+1}.npy"
-
-            img = grid_image(model, dataset_val, device, npyname)
-            show(img, IMAGES_LABEL, jpgname)
-            valid_image(model, dataset_val, device, validname)
+    for i in range(1850, 2015):
+        main(year=i, resume=True)
